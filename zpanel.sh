@@ -1,72 +1,64 @@
 #!/bin/bash
 
-# Atualizar o sistema
+# Atualizar e instalar pacotes básicos
 echo "Atualizando o sistema..."
-if [ -f /etc/redhat-release ]; then
-    # Para CentOS
-    sudo yum update -y
-    echo "Sistema atualizado."
-else
-    # Para Ubuntu/Debian
-    sudo apt update && sudo apt upgrade -y
-    echo "Sistema atualizado."
-fi
+sudo apt update && sudo apt upgrade -y
 
-# Instalar dependências
-echo "Instalando dependências..."
-if [ -f /etc/redhat-release ]; then
-    # Para CentOS
-    sudo yum install -y httpd mysql-server php php-mysql php-cli php-pear php-xml php-mbstring
-else
-    # Para Ubuntu/Debian
-    sudo apt install -y apache2 mysql-server php libapache2-mod-php php-mysql php-cli php-xml php-mbstring
-fi
-echo "Dependências instaladas."
+# Instalar Apache, MySQL e PHP
+echo "Instalando Apache, MySQL e PHP..."
+sudo apt install -y apache2 mysql-server php libapache2-mod-php php-mysql php-cli php-xml php-mbstring
 
-# Iniciar e habilitar serviços
-echo "Iniciando e habilitando serviços..."
-if [ -f /etc/redhat-release ]; then
-    sudo systemctl start httpd
-    sudo systemctl start mysqld
-    sudo systemctl enable httpd
-    sudo systemctl enable mysqld
-else
-    sudo systemctl start apache2
-    sudo systemctl start mysql
-    sudo systemctl enable apache2
-    sudo systemctl enable mysql
-fi
-echo "Serviços iniciados."
+# Iniciar e habilitar Apache e MySQL
+echo "Iniciando e habilitando Apache e MySQL..."
+sudo systemctl start apache2
+sudo systemctl start mysql
+sudo systemctl enable apache2
+sudo systemctl enable mysql
+
+# Configurar senha root do MySQL
+echo "Configurando MySQL..."
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY 'senha_segura_root'; FLUSH PRIVILEGES;"
+
+# Configuração básica do MySQL Secure Installation
+echo "Realizando configurações de segurança no MySQL..."
+sudo mysql_secure_installation <<EOF
+
+y
+senha_segura_root
+senha_segura_root
+y
+y
+y
+y
+EOF
+
+# Criar banco de dados e usuário para o ZPanel
+echo "Configurando banco de dados para o ZPanel..."
+mysql -uroot -psenha_segura_root -e "CREATE DATABASE zpanel;"
+mysql -uroot -psenha_segura_root -e "CREATE USER 'zpaneluser'@'localhost' IDENTIFIED BY 'senha_zpanel_user';"
+mysql -uroot -psenha_segura_root -e "GRANT ALL PRIVILEGES ON zpanel.* TO 'zpaneluser'@'localhost';"
+mysql -uroot -psenha_segura_root -e "FLUSH PRIVILEGES;"
 
 # Baixar e instalar o ZPanel
 echo "Baixando e instalando o ZPanel..."
 cd /tmp
 wget http://downloads.zpanelcp.com/zpanel/x/xpanel-install.sh
+chmod +x xpanel-install.sh
 sudo sh xpanel-install.sh
-echo "ZPanel instalado."
 
-# Configuração do MySQL
-echo "Configurando o MySQL..."
-sudo mysql_secure_installation
+# Configurar o firewall para permitir acesso HTTP e HTTPS
+echo "Configurando o firewall..."
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 22/tcp
+sudo ufw --force enable
 
-# Criar banco de dados e usuário para o ZPanel
-echo "Criando banco de dados e usuário para o ZPanel..."
-DB_NAME="zpanel"
-DB_USER="zpaneluser"
+# Reiniciar o Apache para aplicar todas as mudanças
+echo "Reiniciando o Apache..."
+sudo systemctl restart apache2
 
-# Solicitar a senha do banco de dados
-read -sp "Digite uma senha forte para o banco de dados '$DB_NAME' (usuário: '$DB_USER'): " DB_PASS
-echo # Nova linha após a senha
-
-# Criar banco de dados e usuário
-sudo mysql -u root -p -e "
-CREATE DATABASE $DB_NAME;
-CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
-GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
-FLUSH PRIVILEGES;
-"
-
-echo "Banco de dados e usuário criados com sucesso."
-
-# Finalizar
-echo "Instalação concluída! Acesse o ZPanel em http://seu_ip/zpanel"
+# Mensagem de finalização
+echo "Instalação concluída. Você pode acessar o ZPanel em http://177.153.51.12/zpanel"
+echo "Credenciais padrão para o ZPanel:"
+echo "Usuário: admin"
+echo "Senha: password" # Você poderá alterar a senha após o primeiro login
