@@ -1,0 +1,100 @@
+#!/bin/bash
+
+# Atualizar o sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Nginx
+sudo apt install nginx -y
+
+# Configurar o firewall
+sudo ufw allow 'Nginx Full'
+sudo ufw allow OpenSSH
+sudo ufw --force enable
+
+# Instalar MySQL
+sudo apt install mysql-server -y
+
+# Configuração de segurança do MySQL
+sudo mysql_secure_installation
+
+# Configurar MySQL com um novo usuário Admin e banco de dados básico
+MYSQL_ROOT_PASSWORD="879x73748m@"
+MYSQL_USER="Admin"
+MYSQL_USER_PASSWORD="879x73748m@"
+DATABASE_NAME="servidor_db"
+
+# Login como root para configurar o MySQL
+sudo mysql -u root <<EOF
+CREATE USER '${MYSQL_USER}'@'localhost' IDENTIFIED BY '${MYSQL_USER_PASSWORD}';
+GRANT ALL PRIVILEGES ON *.* TO '${MYSQL_USER}'@'localhost' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+CREATE DATABASE ${DATABASE_NAME};
+EOF
+
+# Instalar PHP e extensões necessárias
+sudo apt install php-fpm php-mysql -y
+
+# Instalar phpMyAdmin
+sudo apt install phpmyadmin -y
+
+# Configurar phpMyAdmin com Nginx
+# Criar o arquivo de configuração do Nginx para phpMyAdmin
+sudo tee /etc/nginx/sites-available/phpmyadmin > /dev/null <<EOT
+server {
+    listen 80;
+    server_name i11892a.vps-kinghost.net;
+
+    root /usr/share/phpmyadmin;
+    index index.php index.html index.htm;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php7.4-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOT
+
+# Ativar o site phpMyAdmin
+sudo ln -s /etc/nginx/sites-available/phpmyadmin /etc/nginx/sites-enabled/
+
+# Remover o arquivo de configuração padrão, caso esteja habilitado
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Testar a configuração do Nginx
+sudo nginx -t
+
+# Reiniciar o Nginx para aplicar as configurações
+sudo systemctl restart nginx
+
+# Instalar Certbot e o plugin Nginx para SSL
+sudo apt install certbot python3-certbot-nginx -y
+
+# Solicitar o certificado SSL com Certbot
+sudo certbot --nginx -d i11892a.vps-kinghost.net --non-interactive --agree-tos -m igor.amorimcv@gmail.com --redirect
+
+# Configurar a renovação automática do Certbot
+sudo systemctl enable certbot.timer
+
+# Permitir que o Nginx e o PHP-FPM sejam iniciados automaticamente ao ligar o sistema
+sudo systemctl enable nginx
+sudo systemctl enable php7.4-fpm
+
+# Conceder permissões e reiniciar serviços
+sudo chown -R www-data:www-data /usr/share/phpmyadmin
+sudo systemctl restart php7.4-fpm
+sudo systemctl restart nginx
+
+echo "Instalação concluída!"
+echo "Acesse o phpMyAdmin em: https://i11892a.vps-kinghost.net/phpmyadmin"
+echo "Informações do usuário MySQL:"
+echo "  Usuário: Admin"
+echo "  Senha: 879x73748m@"
+echo "  Banco de Dados: servidor_db"
