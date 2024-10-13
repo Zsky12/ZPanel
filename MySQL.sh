@@ -1,32 +1,50 @@
 #!/bin/bash
 
-# Atualizar pacotes e instalar Apache
-sudo apt update -y
-sudo apt upgrade -y
-sudo apt install apache2 -y
+# Atualizar pacotes
+sudo apt update && sudo apt upgrade -y
 
-# Instalar MySQL Server e configurar senha root
-sudo apt install mysql-server -y
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '35#Av@a5ka';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+# Instalar Nginx
+sudo apt install nginx -y
 
 # Instalar PHP e extensões necessárias
-sudo apt install php libapache2-mod-php php-mysql php-curl php-json php-cgi php-cli php-gd php-zip php-mbstring php-xml php-common -y
+sudo apt install php-fpm php-mysql -y
 
 # Instalar phpMyAdmin
 sudo apt install phpmyadmin -y
 
-# Configurar o phpMyAdmin
-sudo ln -s /usr/share/phpmyadmin /var/www/html/phpmyadmin
+# Configurar Nginx para phpMyAdmin
+cat <<EOL | sudo tee /etc/nginx/conf.d/phpmyadmin.conf
+server {
+    listen 80;
+    server_name localhost;
 
-# Configurar permissões para a pasta www
-sudo chown -R www-data:www-data /var/www/html
-sudo chmod -R 755 /var/www/html
+    root /usr/share/phpmyadmin;
+    index index.php index.html index.htm;
 
-# Liberar pasta www publicamente
-sudo ufw allow in "Apache Full"
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
 
-# Reiniciar Apache para aplicar alterações
-sudo systemctl restart apache2
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php7.4-fpm.sock;  # Altere para sua versão do PHP
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
 
-echo "Instalação concluída! Apache, MySQL, PHP e phpMyAdmin foram configurados."
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOL
+
+# Reiniciar o Nginx
+sudo systemctl restart nginx
+
+# Liberar as portas do firewall
+sudo ufw allow 'Nginx Full'
+
+# Habilitar o firewall
+sudo ufw enable
+
+echo "Instalação do phpMyAdmin e Nginx concluída. Acesse o phpMyAdmin em http://<seu_endereço_ip>/"
